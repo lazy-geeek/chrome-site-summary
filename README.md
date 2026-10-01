@@ -1,6 +1,6 @@
 # Chrome Site Summary
 
-Chrome-Extension, die den Hauptinhalt der aktuellen Webseite auf Deutsch über OpenRouter zusammenfasst. Die Ausgabe erscheint in der Chrome-Seitenleiste: kurzer Überblick und 5–10 zentrale Punkte, sofern die Quelle genügend Inhalt bietet.
+Chrome-Extension, die den Hauptinhalt der aktuellen Webseite oder einer geöffneten PDF auf Deutsch über OpenRouter zusammenfasst. Die Ausgabe erscheint in der Chrome-Seitenleiste: kurzer Überblick und 5–10 zentrale Punkte, sofern die Quelle genügend Inhalt bietet.
 
 ## Installation in Chrome
 
@@ -18,7 +18,7 @@ Ein Build oder `npm install` ist für die Installation der Extension nicht erfor
 
 ## Verwendung
 
-1. Eine normale Webseite öffnen und vollständig laden lassen.
+1. Eine Webseite oder PDF öffnen und vollständig laden lassen.
 2. Auf das Extension-Icon klicken, um die Seitenleiste zu öffnen und den Zugriff auf diesen Tab zu erlauben.
 3. **Seite zusammenfassen** drücken.
 4. Die Zusammenfassung lesen, **Kopieren** oder **Erneut zusammenfassen** wählen.
@@ -43,12 +43,22 @@ Nach einem Update der lokal geladenen Extension in `chrome://extensions` auf **N
 
 Ein leer gespeicherter API-Key entfernt den bisherigen Key. Eine leere Modell-ID setzt den Ausgangswert ein.
 
+## PDF-Dokumente
+
+Eine im aktuellen Tab geöffnete PDF mit `.pdf` in der Adresse wird direkt erkannt. Beim Start fragt Chrome nach Zugriff auf die betreffende Website; danach lädt die Extension die Datei mit vorhandenen Browser-Anmeldedaten und liest alle Seiten lokal mit der mitgelieferten PDF.js-Bibliothek aus. An OpenRouter wird ausschließlich der extrahierte Text gesendet. Auch PDF-Ergebnisse werden nach vollständiger Adresse gespeichert und beim erneuten Besuch geladen.
+
+Bei PDF-Adressen ohne `.pdf`-Endung kann Chrome den normalen Seitenzugriff verweigern. In diesem Fall bietet die Seitenleiste **Als PDF versuchen** an. Bei einer als PDF erkannten Quelle erscheint **PDF zusammenfassen**. Die zusätzliche Bestätigung ermöglicht die von Chrome vorgeschriebene Abfrage der Dateiberechtigung durch einen direkten Klick.
+
+Für lokale Dateien (`file:///…/dokument.pdf`) unter `chrome://extensions` → **Chrome Site Summary** → **Details** zusätzlich **Zugriff auf Datei-URLs zulassen** aktivieren. Bei passwortgeschützten Dokumenten erscheint ein Passwortfeld; das Passwort wird weder gespeichert noch an OpenRouter gesendet.
+
+Grenzen: maximal 25 MiB, 500 Seiten und 120.000 Zeichen. Reine Scans benötigen vorher OCR. Bei einzelnen Seiten ohne auslesbaren Text wird deren Anzahl als Quellenhinweis angezeigt; Bilder, Diagramme und gescannte Seiten werden nicht analysiert. Mehrspaltige PDFs können eine unvollkommene Textreihenfolge ergeben. Geschützte Download-Adressen können trotz geöffneter Vorschau eine erneute Anmeldung erfordern. Blob-Adressen und PDFs in fremden eingebetteten Viewern werden nicht unterstützt. PDF-Auswertung umfasst alle auslesbaren Seiten einschließlich Anhängen und Literaturverzeichnissen.
+
 ## Lange Seiten und Grenzen
 
 - Texte bis 12.000 Zeichen werden direkt zusammengefasst.
 - Längere Texte werden in Abschnitte aufgeteilt, einzeln verdichtet und zu einer Gesamtsynthese verbunden. Bei sehr langen Zwischenergebnissen folgt eine weitere Verdichtungsrunde. Dafür werden mehrere kostenpflichtige API-Anfragen benötigt.
 - Über 120.000 Zeichen wird keine Anfrage gesendet. Die Extension bittet um eine kürzere Seite, statt den Hauptinhalt still abzuschneiden.
-- PDF-, Bild-, Audio- und Videoauswertung, Inhalte in eingebetteten Frames und geschlossenen Shadow Roots sind nicht enthalten. Bei YouTube wird kein Transkript automatisch geöffnet; dafür bleibt der separate YouTube Summarizer zuständig.
+- Bild-, Audio- und Videoauswertung, Inhalte in eingebetteten Frames und geschlossenen Shadow Roots sind nicht enthalten. Bei YouTube wird kein Transkript automatisch geöffnet; dafür bleibt der separate YouTube Summarizer zuständig.
 - Chrome-interne Seiten und der Chrome Web Store erlauben keine normale Textextraktion durch diese Extension.
 - Bei Layouts ohne eindeutig erkennbaren Artikel wird auf den bereinigten Seiteninhalt zurückgegriffen. Die Erkennung ist heuristisch und kann je nach Webseite Navigation oder andere Nebeninhalte enthalten.
 - Paywalls werden nicht umgangen; nur zugänglicher, bereits geladener Text kann verarbeitet werden.
@@ -59,7 +69,7 @@ Erst durch **Seite zusammenfassen** werden Seitentitel und extrahierter Hauptinh
 
 Der API-Key liegt lokal in `chrome.storage.local`, wird nicht per Chrome-Sync synchronisiert und ist nur für vertrauenswürdige Extension-Komponenten zugänglich. Der Key wird nicht an die Webseite oder das Extraktionsskript übergeben. Lokale Chrome-Speicherung ist kein verschlüsselter Passworttresor. Der Rohtext wird nicht dauerhaft gespeichert. Fertige Zusammenfassungen und zugehörige Seitenadresse, Titel, Modell und Datum bleiben ebenfalls lokal gespeichert, bis sie gelöscht oder durch die Cache-Begrenzung entfernt werden.
 
-Die Extension verwendet `activeTab`, `tabs`, `scripting`, `storage` und `sidePanel`. Die Berechtigung `tabs` erlaubt das Erkennen von URL und Titel beim Seitenwechsel, damit passende gespeicherte Ergebnisse automatisch angezeigt werden. Sie erlaubt alleine kein Auslesen des Seiteninhalts. Zum Erstellen einer neuen Zusammenfassung kann deshalb weiterhin ein Klick auf das Extension-Icon auf der betreffenden Webseite notwendig sein. Der einzige dauerhaft erlaubte externe Host ist `https://openrouter.ai/*`. Für beliebige Webseiten gibt es keine pauschale dauerhafte Host-Berechtigung.
+Die Extension verwendet `activeTab`, `tabs`, `scripting`, `storage` und `sidePanel`. Die Berechtigung `tabs` erlaubt das Erkennen von URL und Titel beim Seitenwechsel, damit passende gespeicherte Ergebnisse automatisch angezeigt werden. Sie erlaubt alleine kein Auslesen des Seiteninhalts. Zum Erstellen einer neuen Zusammenfassung kann deshalb weiterhin ein Klick auf das Extension-Icon auf der betreffenden Webseite notwendig sein. Bei der Installation ist der einzige dauerhaft erlaubte externe Host `https://openrouter.ai/*`. Optionaler Zugriff auf HTTP-/HTTPS-Hosts wird erst beim PDF-Start für die konkrete Website angefragt und von Chrome gespeichert. Für lokale PDFs wird optionaler Zugriff auf Datei-URLs benötigt. Erteilte Website-Berechtigungen lassen sich in den Chrome-Details der Extension wieder entfernen. PDF.js und alle Hilfsdateien werden lokal ausgeliefert; es wird kein externer Bibliothekscode geladen.
 
 Seiteninhalte werden im Prompt als Quellenmaterial behandelt. Die Modellantwort wird mit DOM-Textknoten dargestellt; HTML und Skripte aus Antworten werden nicht ausgeführt. Zusammenfassungen können dennoch Fehler enthalten und ersetzen bei wichtigen Entscheidungen nicht die Originalquelle.
 
@@ -73,7 +83,9 @@ npm test
 npm run check
 ```
 
-Die Tests prüfen Textextraktion einschließlich versteckter Inhalte und Text außerhalb des sichtbaren Bereichs, Streaming, lange Seiten, API-Fehler, Abbruch bei Tabwechsel, Ergebnis-Zwischenspeicherung und sichere Markdown-Darstellung. Sie verwenden ausschließlich Testantworten und benötigen keinen API-Key. `npm run check` prüft Manifest, benötigte Dateien und JavaScript-Syntax.
+Nach einem gezielten Update von `pdfjs-dist` mit `npm run vendor:pdf` die mitgelieferten Parser-, Worker-, Schrift- und CMap-Dateien aktualisieren und die Tests erneut ausführen. Die Drittanbieter-Lizenzen befinden sich unter `vendor/pdfjs/`.
+
+Die Tests prüfen HTML- und PDF-Textextraktion, PDF-Zugriffsfreigabe und Fehlerfälle, Streaming, lange Quellen, API-Fehler, Abbruch bei Tabwechsel, Ergebnis-Zwischenspeicherung und sichere Markdown-Darstellung. Sie verwenden ausschließlich Testantworten und benötigen keinen API-Key. `npm run check` prüft Manifest, benötigte Dateien und JavaScript-Syntax. Der lokale PDF-Worker wurde zusätzlich in einer Browser-Vorschau geprüft.
 
 Für eine ZIP-Datei mit ausschließlich den installierbaren Extension-Dateien unter Windows:
 
@@ -89,6 +101,7 @@ Ergebnis: `dist/chrome-site-summary.zip`. Zum Laden in Chrome zuerst entpacken.
 - `cache.js`: Dauerhafte Zusammenfassungen nach URL speichern, wiederfinden, begrenzen und löschen.
 - `sidepanel.html` / `sidepanel.js`: Manueller Ablauf, Status, Abbrechen, Kopieren und Tab-Zuordnung.
 - `extract.js`: Hauptinhalt im isolierten Kontext der aktuellen Seite auslesen.
+- `pdf.js` / `vendor/pdfjs/`: PDF-Dateien laden und deren Text lokal mit PDF.js auslesen.
 - `openrouter.js`: Streaming-Client und mehrstufige Verarbeitung langer Texte.
 - `options.html` / `options.js` / `settings.js`: Setup und lokales Speichern.
 - `render.js`: Sichere Darstellung eines kleinen Markdown-Umfangs.

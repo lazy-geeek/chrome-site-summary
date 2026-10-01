@@ -23,6 +23,10 @@ test("persists by URL independently of tab IDs, keeping query strings and SPA ro
   assert.equal(await getCachedSummary("https://other.example/article?q=1#route-a"), null);
   assert(!JSON.stringify(local).includes("DO NOT STORE"));
   assert.equal(await getCachedSummary("chrome://settings"), null);
+  await saveCachedSummary({ ...entry("file:///C:/Reports/document.pdf#page=2"), password: "DO NOT STORE PASSWORD" });
+  assert.equal((await getCachedSummary("file:///C:/Reports/document.pdf#page=2")).summary, "Deutsche Zusammenfassung");
+  assert.equal(await getCachedSummary("file:///C:/Reports/other.pdf#page=2"), null);
+  assert(!JSON.stringify(local).includes("DO NOT STORE PASSWORD"));
 });
 
 test("replaces a refreshed result without accumulating copies and clearing preserves credentials", async (t) => {

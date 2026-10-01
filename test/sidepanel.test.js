@@ -13,6 +13,46 @@ function response(text) {
   return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: text }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
 }
 
+test("PDF tab requests permission in the click, parses locally, summarizes and restores its cache", async (t) => {
+  const dom = new JSDOM(readFileSync("sidepanel.html", "utf8"), { url: "https://extension.test/" });
+  globalThis.document = dom.window.document; globalThis.window = dom.window;
+  const tab = { id: 12, windowId: 1, title: "Report", url: "https://example.org/report.pdf#page=2" };
+  const local = {}; let permissions = 0; let requests = 0; let granted = false;
+  globalThis.chrome = {
+    tabs: { query: async () => [tab], onActivated: event(), onUpdated: event() },
+    windows: { getCurrent: async () => ({ id: 1 }) },
+    permissions: { request: ({ origins }) => { permissions++; assert.deepEqual(origins, ["https://example.org/*"]); return Promise.resolve(granted); } },
+    storage: { local: { setAccessLevel: async () => {}, get: async (key) => Array.isArray(key) ? { apiKey: "test-key", model: "test/model" } : key === null ? local : { [key]: local[key] }, set: async (value) => Object.assign(local, value), remove: async () => {} }, onChanged: event() },
+    runtime: { id: "test-extension", onMessage: event() },
+    scripting: { executeScript: () => assert.fail("PDF must not inject scripts into Chrome's viewer") }
+  };
+  t.after(() => { delete globalThis.document; delete globalThis.window; delete globalThis.chrome; dom.window.close(); });
+  const pdf = `%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n5 0 obj << /Length 150 >> stream\nBT /F1 12 Tf 40 700 Td (This report contains the complete research methods, results, conclusions and limitations for a useful document summary.) Tj ET\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF`;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    requests++;
+    if (url === tab.url) return new Response(pdf);
+    assert.equal(url, "https://openrouter.ai/api/v1/chat/completions");
+    assert.match(options.body, /complete research/);
+    return response("# Überblick\n\nPDF zusammengefasst.");
+  });
+  await import(`../sidepanel.js?pdf-test=${Date.now()}`);
+  const $ = (id) => document.getElementById(id);
+  await until(() => $("model-label").textContent === "test/model");
+  $("summarize").click();
+  assert.equal(permissions, 1);
+  await until(() => !$("error").hidden && !$("summarize").disabled);
+  assert.equal(requests, 0); assert.match($("error").textContent, /nicht erlaubt/);
+  granted = true; $("summarize").click();
+  assert.equal(permissions, 2);
+  await until(() => $("status").textContent.startsWith("Zusammenfassung fertig") && !$("summarize").disabled);
+  assert.match($("meta").textContent, /PDF · 1 Seiten/);
+  assert.equal(requests, 2);
+  assert(Object.values(local).some((entry) => entry.url === tab.url));
+  chrome.tabs.onUpdated.emit(tab.id, { status: "complete" });
+  await until(() => $("status").textContent.startsWith("Gespeicherte Zusammenfassung"));
+  assert.equal(requests, 2);
+});
+
 test("panel requires manual start, caches complete results and cancels navigation without showing another tab's answer", async (t) => {
   const dom = new JSDOM(readFileSync("sidepanel.html", "utf8"), { url: "https://extension.test/" });
   globalThis.document = dom.window.document;

@@ -6,6 +6,9 @@ const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
 assert.equal(manifest.manifest_version, 3);
 assert(manifest.permissions.includes("tabs"));
 assert.deepEqual(manifest.host_permissions, ["https://openrouter.ai/*"]);
+assert.deepEqual(manifest.optional_host_permissions, ["https://*/*", "http://*/*", "file:///*"]);
+for (const file of ["pdf.min.mjs", "pdf.worker.min.mjs", "LICENSE"]) assert(existsSync(`vendor/pdfjs/${file}`));
+assert(manifest.content_security_policy.extension_pages.includes("worker-src 'self'"));
 for (const file of [manifest.background.service_worker, manifest.side_panel.default_path, manifest.options_page, ...Object.values(manifest.icons || {})]) assert(existsSync(file), `Missing extension file: ${file}`);
 for (const file of readdirSync(".").filter((name) => name.endsWith(".js"))) {
   execFileSync(process.execPath, ["--check", file], { stdio: "inherit" });

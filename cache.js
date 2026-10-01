@@ -5,7 +5,7 @@ const MAX_BYTES = 4 * 1024 * 1024;
 async function keyFor(url) {
   let parsed;
   try { parsed = new URL(url); } catch { return null; }
-  if (!/^https?:$/.test(parsed.protocol)) return null;
+  if (!/^(https?:|file:)$/.test(parsed.protocol)) return null;
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(parsed.href));
   return PREFIX + Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }

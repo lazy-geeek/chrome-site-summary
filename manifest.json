@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Chrome Site Summary",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Fasst den Hauptinhalt der aktuellen Webseite auf Deutsch über OpenRouter zusammen.",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "tabs", "scripting", "storage", "sidePanel"],
   "host_permissions": ["https://openrouter.ai/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*", "file:///*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": {
     "default_title": "Seite zusammenfassen",
@@ -15,6 +16,6 @@
   "side_panel": { "default_path": "sidepanel.html" },
   "options_page": "options.html",
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://openrouter.ai"
+    "extension_pages": "script-src 'self'; object-src 'self'; worker-src 'self'; connect-src 'self' https: http: file:"
   }
 }

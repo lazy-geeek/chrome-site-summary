@@ -1,10 +1,11 @@
 // Self-contained: Chrome serializes this function into the tab's isolated world.
 export function extractPage() {
+  if (document.contentType === "application/pdf") return { kind: "pdf", url: location.href };
   if (!/^https?:$/.test(location.protocol)) {
     return { error: "Diese Seite wird nicht unterstützt. Bitte öffne eine normale Webseite (HTTP/HTTPS)." };
   }
   if (document.contentType !== "text/html" && document.contentType !== "application/xhtml+xml") {
-    return { error: "Hier ist kein HTML-Seiteninhalt verfügbar. PDF-, Bild- und Videoauswertung sind noch nicht enthalten." };
+    return { error: "Hier ist kein HTML-Seiteninhalt verfügbar. Bild- und Videoauswertung sind noch nicht enthalten." };
   }
   const excluded = "script,style,noscript,template,nav,footer,aside,form,input,textarea,select,button,svg,canvas,iframe,[role=navigation],[role=banner],[role=contentinfo],[role=dialog],[aria-modal=true],[hidden],[aria-hidden=true],[contenteditable]:not([contenteditable=false]),.cookie-banner,.cookie-consent,#onetrust-banner-sdk,#CybotCookiebotDialog,[data-ad-slot],.adsbygoogle";
   const boundaries = new Set(["P", "DIV", "SECTION", "ARTICLE", "MAIN", "H1", "H2", "H3", "H4", "H5", "H6", "LI", "UL", "OL", "BLOCKQUOTE", "PRE", "TR", "BR", "HR"]);
