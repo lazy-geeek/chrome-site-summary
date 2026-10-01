@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Einstellungen · Chrome Site Summary</title><link rel="stylesheet" href="styles.css"><script type="module" src="options.js"></script></head>
+<body class="options"><main class="settings-card"><span class="eyebrow">CHROME SITE SUMMARY</span><h1>Dein Setup.</h1><p class="intro">Verbinde OpenRouter und wähle das Modell für deine Zusammenfassungen.</p>
+  <form id="form">
+    <label for="api-key">OpenRouter API-Key</label><div class="input-row"><input id="api-key" type="password" placeholder="sk-or-…" autocomplete="off" spellcheck="false"><button id="toggle-key" type="button" class="secondary" aria-pressed="false">Anzeigen</button></div><p class="help">Lokal in dieser Chrome-Installation gespeichert. Kein Chrome-Sync. <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">API-Key erstellen</a></p>
+    <label for="model">Modell-ID</label><input id="model" type="text" placeholder="anthropic/claude-sonnet-4.5" autocomplete="off" spellcheck="false"><p class="help">Exakte OpenRouter-ID, wie im YouTube Summarizer. <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer">Modelle ansehen</a></p>
+    <div class="settings-actions"><button type="submit" class="primary">Speichern</button><button id="test" type="button" class="secondary">Verbindung testen</button></div>
+  </form>
+  <p class="help">Der Test verwendet die eingegebenen Werte und sendet eine kurze Textanfrage. Dafür können geringe API-Kosten entstehen.</p><p id="status" class="status" role="status" aria-live="polite"></p><div id="error" class="error" role="alert" hidden></div>
+  <div class="notice"><strong>Du bestimmst den Zeitpunkt.</strong><p>Eine Webseite wird erst auf deinen Klick zusammengefasst. Ihr Hauptinhalt wird dafür an OpenRouter und den gewählten Modellanbieter übertragen. Der API-Key wird nicht an Webseiten übergeben.</p></div>
+</main></body>
+</html>

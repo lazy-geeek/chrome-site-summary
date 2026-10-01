@@ -1,0 +1,16 @@
+{
+  "name": "chrome-site-summary",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": {
+    "node": "^22.13.0 || >=24.0.0"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

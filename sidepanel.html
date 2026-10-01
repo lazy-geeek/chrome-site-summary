@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chrome Site Summary</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="sidepanel.js"></script>
+</head>
+<body class="panel">
+  <header class="app-header"><div><span class="eyebrow">CHROME SITE SUMMARY</span><h1>Das Wesentliche.</h1></div><button id="settings" class="icon-button" aria-label="Einstellungen öffnen" title="Einstellungen">⚙</button></header>
+  <main>
+    <section class="source-card" aria-label="Aktuelle Seite"><span class="eyebrow">DEINE QUELLE</span><h2 id="page-title">Aktuelle Webseite</h2><p id="page-host" class="muted">Seite wird geladen …</p></section>
+    <div class="actions"><button id="summarize" class="primary" disabled>Seite zusammenfassen</button><button id="cancel" class="secondary" hidden>Abbrechen</button></div>
+    <p class="privacy">Beim Start wird der Hauptinhalt der gesamten geladenen Seite an OpenRouter und den gewählten Modellanbieter gesendet. Lange Seiten benötigen mehrere kostenpflichtige Anfragen.</p>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <div id="error" class="error" role="alert" hidden></div>
+    <section id="empty" class="empty"><div class="empty-symbol" aria-hidden="true">≡</div><h2>Mehr Überblick.<br>Weniger Lesezeit.</h2><p>Ein kurzer Überblick und die zentralen Punkte — immer auf Deutsch.</p><p class="muted">Öffne eine Webseite und starte die Zusammenfassung.</p></section>
+    <section id="result" class="result" aria-label="Zusammenfassung" hidden><div class="result-toolbar"><span class="eyebrow">ZUSAMMENFASSUNG</span><button id="copy" class="secondary" disabled>Kopieren</button></div><div id="summary" class="summary"></div><p id="meta" class="muted result-meta"></p></section>
+  </main>
+  <footer><span id="model-label">OpenRouter</span><span>Deutsch · Ausgewogen</span></footer>
+</body>
+</html>
