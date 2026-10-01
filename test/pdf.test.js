@@ -27,6 +27,8 @@ test("recognizes remote/local PDF URLs and requests only the source origin synch
     assert(await promise);
     await requestPdfAccess("file:///C:/report.pdf");
     assert.deepEqual(requested, { origins: ["file:///*"] });
+    await assert.rejects(requestPdfAccess(undefined), /Extension-Icon/);
+    await assert.rejects(requestPdfAccess("chrome://settings"), /nicht unterstützt/);
   } finally { delete globalThis.chrome; }
 });
 

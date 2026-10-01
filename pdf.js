@@ -9,10 +9,14 @@ export function isPdfUrl(url) {
 // Called directly by the click listener, before its first await: Chrome requires
 // a user gesture for optional host permission requests.
 export function requestPdfAccess(url) {
-  const parsed = new URL(url);
-  if (!/^(https?:|file:)$/.test(parsed.protocol)) return Promise.reject(new Error("Diese PDF-Adresse wird nicht unterstützt."));
-  const origin = parsed.protocol === "file:" ? "file:///*" : `${parsed.origin}/*`;
-  return chrome.permissions.request({ origins: [origin] });
+  try {
+    const parsed = new URL(url);
+    if (!/^(https?:|file:)$/.test(parsed.protocol)) throw new Error("Diese PDF-Adresse wird nicht unterstützt.");
+    const origin = parsed.protocol === "file:" ? "file:///*" : `${parsed.origin}/*`;
+    return chrome.permissions.request({ origins: [origin] });
+  } catch (error) {
+    return Promise.reject(error instanceof TypeError ? new Error("Die PDF-Adresse ist nicht verfügbar. Klicke im PDF-Tab erneut auf das Extension-Icon.") : error);
+  }
 }
 
 export async function downloadPdf(url, signal) {
