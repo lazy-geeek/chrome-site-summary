@@ -53,7 +53,7 @@ test("PDF tab requests permission in the click, parses locally, summarizes and r
   assert.equal(requests, 2);
 });
 
-test("panel requires manual start, caches complete results and cancels navigation without showing another tab's answer", async (t) => {
+test("panel requires manual start, caches results and restores a running job after switching tabs", async (t) => {
   const dom = new JSDOM(readFileSync("sidepanel.html", "utf8"), { url: "https://extension.test/" });
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
@@ -108,17 +108,20 @@ test("panel requires manual start, caches complete results and cancels navigatio
   tab = { id: 2, windowId: 1, title: "Artikel zwei", url: "https://example.org/two" };
   activated.emit({ tabId: 2, windowId: 1 });
   await until(() => $("page-title").textContent === "Artikel zwei");
-  assert.equal(aborted, true);
+  assert.equal(aborted, false);
   assert.equal($("result").hidden, true);
   assert.equal($("summary").textContent, "");
   assert.equal($("error").hidden, true);
 
-  // Revisiting the original tab restores its completed snapshot without an API call.
+  // Revisiting the original tab restores its running refresh, overriding old cache.
   tab = { id: 1, windowId: 1, title: "Artikel eins", url: "https://example.org/one" };
   activated.emit({ tabId: 1, windowId: 1 });
-  await until(() => !$("result").hidden);
-  assert.match($("summary").textContent, /Deutsche Zusammenfassung/);
-  assert.match($("status").textContent, /Gespeicherte Zusammenfassung/);
+  await until(() => $("status").textContent === "Zusammenfassung erstellen …");
+  assert.equal($("summarize").disabled, true);
+  assert.equal($("cancel").hidden, false);
+  $("cancel").click();
+  await until(() => aborted);
+  assert.match($("status").textContent, /Abgebrochen/);
 
   // Revisit in a new tab, as after closing/reopening Chrome: no new request.
   tab = { ...tab, id: 99 };
@@ -134,6 +137,87 @@ test("panel requires manual start, caches complete results and cancels navigatio
   await until(() => $("page-host").textContent === "other.example");
   assert.equal($("result").hidden, true);
   assert.equal(networkCalls, 1);
+});
+
+test("parallel tab streams remain independent, finish offscreen and cancel only the selected tab", async (t) => {
+  const dom = new JSDOM(readFileSync("sidepanel.html", "utf8"), { url: "https://extension.test/" });
+  globalThis.document = dom.window.document; globalThis.window = dom.window;
+  let tab = { id: 1, windowId: 1, title: "Artikel A", url: "https://example.org/a" };
+  const a = { ...tab }; const b = { ...tab, id: 2, title: "Artikel B", url: "https://example.org/b" };
+  const local = {}; const streams = [];
+  const activated = event(); const updated = event(); const removed = event();
+  globalThis.chrome = {
+    tabs: { query: async () => [tab], onActivated: activated, onUpdated: updated, onRemoved: removed },
+    windows: { getCurrent: async () => ({ id: 1 }) },
+    runtime: { id: "test-extension", onMessage: event() },
+    storage: { local: { setAccessLevel: async () => {}, get: async (key) => Array.isArray(key) ? { apiKey: "test-key", model: "test/model" } : key === null ? { ...local } : { [key]: local[key] }, set: async (value) => Object.assign(local, value), remove: async (keys) => keys.forEach((key) => delete local[key]) }, onChanged: event() },
+    scripting: { executeScript: async () => [{ result: { title: tab.title, url: tab.url, text: `Quelle ${tab.title} `.repeat(50), method: "Hauptinhalt", extractedAt: Date.now() } }] }
+  };
+  const encode = (value) => new TextEncoder().encode(value);
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    const entry = { signal: options.signal };
+    const body = new ReadableStream({ start(controller) { entry.controller = controller; }, cancel() {} });
+    options.signal.addEventListener("abort", () => entry.controller.error(new DOMException("Aborted", "AbortError")), { once: true });
+    entry.delta = (text) => entry.controller.enqueue(encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`));
+    entry.finish = () => { entry.controller.enqueue(encode("data: [DONE]\n\n")); entry.controller.close(); };
+    streams.push(entry); return new Response(body);
+  });
+  t.after(() => { dom.window.dispatchEvent(new dom.window.Event("pagehide")); delete globalThis.document; delete globalThis.window; delete globalThis.chrome; dom.window.close(); });
+  await import(`../sidepanel.js?parallel=${Date.now()}`);
+  const $ = (id) => document.getElementById(id);
+  const switchTo = async (target) => {
+    tab = { ...target }; activated.emit({ tabId: tab.id, windowId: 1 });
+    await until(() => $("page-title").textContent === tab.title);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  };
+  await until(() => $("model-label").textContent === "test/model");
+  $("summarize").click(); await until(() => streams.length === 1);
+  streams[0].delta("Teil A"); await until(() => $("summary").textContent === "Teil A");
+  await switchTo(b);
+  assert.equal(streams[0].signal.aborted, false);
+  assert.equal($("background-jobs").hidden, false);
+  assert.match($("background-jobs").textContent, /1 Zusammenfassung/);
+  assert.equal($("summarize").disabled, false);
+  $("summarize").click(); await until(() => streams.length === 2);
+  streams[1].delta("Teil B"); await until(() => $("summary").textContent === "Teil B");
+  streams[0].delta(" fertig"); streams[0].finish();
+  await until(() => Object.values(local).some((entry) => entry.url === a.url));
+  await until(() => $("background-jobs").hidden);
+  assert.equal($("summary").textContent, "Teil B");
+  assert.equal($("summarize").disabled, true);
+  await switchTo(a);
+  await until(() => $("summary").textContent === "Teil A fertig");
+  await switchTo(b);
+  assert.equal($("summary").textContent, "Teil B");
+  assert.equal($("summarize").disabled, true);
+  $("summarize").click(); assert.equal(streams.length, 2);
+  $("cancel").click(); await until(() => streams[1].signal.aborted);
+  assert.equal(streams[0].signal.aborted, false);
+  assert.match($("status").textContent, /Abgebrochen/);
+  // A new B job finishes while A is displayed and is restored from persistent cache.
+  $("summarize").click(); await until(() => streams.length === 3);
+  await switchTo(a);
+  streams[2].delta("B fertig"); streams[2].finish();
+  await until(() => Object.values(local).some((entry) => entry.url === b.url));
+  assert.equal($("summary").textContent, "Teil A fertig");
+  await switchTo(b); await until(() => $("summary").textContent === "B fertig");
+  // Deleting cached results also clears completed state for inactive tabs.
+  await switchTo(a);
+  const bKey = Object.keys(local).find((key) => local[key].url === b.url);
+  const oldValue = local[bKey]; delete local[bKey];
+  chrome.storage.onChanged.emit({ [bKey]: { oldValue } }, "local");
+  await switchTo(b);
+  assert.equal($("result").hidden, true);
+  // Navigation and tab closure also stop jobs in inactive tabs.
+  $("summarize").click(); await until(() => streams.length === 4);
+  await switchTo(a); updated.emit(b.id, { url: "https://example.org/new" });
+  await until(() => streams[3].signal.aborted);
+  await switchTo(b); $("summarize").click(); await until(() => streams.length === 5);
+  await switchTo(a); removed.emit(b.id); await until(() => streams[4].signal.aborted);
+  // Closing the entire sidebar stops remaining work.
+  $("summarize").click(); await until(() => streams.length === 6);
+  dom.window.dispatchEvent(new dom.window.Event("pagehide"));
+  await until(() => streams[5].signal.aborted);
 });
 
 test("a newly opened panel restores a persistent result without a key or API call and reacts to cache deletion", async (t) => {
