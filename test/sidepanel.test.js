@@ -32,7 +32,7 @@ test("panel requires manual start, caches complete results and cancels navigatio
       session: { get: async () => ({ ...session }), set: async (values) => Object.assign(session, values) },
       onChanged: changed
     },
-    runtime: { openOptionsPage: async () => {} },
+    runtime: { id: "test-extension", openOptionsPage: async () => {}, onMessage: event() },
     scripting: { executeScript: async () => { extracted++; return [{ result: { title: tab.title, url: tab.url, text: "Quelle ".repeat(100), method: "Hauptinhalt", extractedAt: Date.now() } }]; } }
   };
   t.after(() => { delete globalThis.document; delete globalThis.window; delete globalThis.chrome; dom.window.close(); });
@@ -77,4 +77,61 @@ test("panel requires manual start, caches complete results and cancels navigatio
   activated.emit({ tabId: 1, windowId: 1 });
   await until(() => !$("result").hidden);
   assert.match($("summary").textContent, /Deutsche Zusammenfassung/);
+});
+
+test("missing tab metadata never locks the button; an action click refreshes access in an already open panel", async (t) => {
+  const dom = new JSDOM(readFileSync("sidepanel.html", "utf8"), { url: "https://extension.test/" });
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  let tab = { id: 5, windowId: 1 };
+  let granted = false;
+  let networkCalls = 0;
+  const messages = event();
+  const updated = event();
+  const page = { title: "Aktueller Artikel", url: "https://example.org/article", text: "Quelle ".repeat(100), method: "Hauptinhalt", extractedAt: Date.now() };
+  globalThis.chrome = {
+    tabs: { query: async () => [tab], onActivated: event(), onUpdated: updated },
+    windows: { getCurrent: async () => ({ id: 1 }) },
+    runtime: { id: "test-extension", onMessage: messages, openOptionsPage: async () => {} },
+    storage: {
+      local: { setAccessLevel: async () => {}, get: async () => ({ apiKey: "test-only-key", model: "test/model" }) },
+      session: { get: async () => ({}), set: async () => {} },
+      onChanged: event()
+    },
+    scripting: { executeScript: async () => { if (!granted) throw new Error("Missing host permission"); return [{ result: page }]; } }
+  };
+  t.after(() => { delete globalThis.document; delete globalThis.window; delete globalThis.chrome; dom.window.close(); });
+  t.mock.method(globalThis, "fetch", async () => { networkCalls++; return response("Deutsches Ergebnis"); });
+  await import(`../sidepanel.js?missing-metadata=${Date.now()}`);
+  const $ = (id) => document.getElementById(id);
+  await until(() => $("model-label").textContent === "test/model");
+  assert.equal($("summarize").disabled, false);
+  $("summarize").click();
+  await until(() => !$("error").hidden);
+  assert.match($("error").textContent, /Extension-Icon/);
+  assert.equal($("summarize").disabled, false);
+  assert.equal(networkCalls, 0);
+
+  granted = true;
+  tab = { ...tab, url: page.url, title: page.title };
+  messages.emit({ type: "PAGE_ACCESS_GRANTED", windowId: 1, tabId: 5 }, { id: "test-extension" });
+  await until(() => $("page-title").textContent === page.title);
+  assert.equal($("error").hidden, true);
+  $("summarize").click();
+  await until(() => $("status").textContent.startsWith("Zusammenfassung fertig"));
+  assert.equal(networkCalls, 1);
+
+  // A permitted extraction may succeed while the query still omitted the URL.
+  tab = { id: 5, windowId: 1 };
+  messages.emit({ type: "PAGE_ACCESS_GRANTED", windowId: 1, tabId: 5 }, { id: "test-extension" });
+  await until(() => $("page-title").textContent === "Aktuelle Webseite");
+  $("summarize").click();
+  await until(() => $("status").textContent.startsWith("Zusammenfassung fertig"));
+  assert.equal(networkCalls, 2);
+  assert.equal($("page-host").textContent, "example.org");
+
+  tab = { id: 5, windowId: 1, url: "chrome://settings" };
+  updated.emit(5, { status: "complete" });
+  await until(() => $("model-label").textContent === "test/model" && $("result").hidden);
+  assert.equal($("summarize").disabled, true);
 });

@@ -27,7 +27,9 @@ Erfasst wird der Hauptinhalt der gesamten bereits geladenen Seite, einschließli
 
 Die Ausgabe ist immer auf Deutsch. Es gibt keine Rückfragen und keinen Chat. Das Ergebnis bleibt für den jeweiligen Tab während der Browser-Sitzung zwischengespeichert. Beim Neuladen oder Navigieren wird es verworfen. Ein Tabwechsel bricht eine laufende Verarbeitung ab und zeigt das Ergebnis des neu ausgewählten Tabs, sofern vorhanden. Nach Änderungen einer dynamischen Seite ohne Navigation kann eine vorhandene Zusammenfassung veraltet sein; dann **Erneut zusammenfassen** wählen.
 
-Falls nach einem Tabwechsel kein Zugriff besteht, auf der gewünschten Webseite erneut das Extension-Icon anklicken und die Seitenleiste gegebenenfalls wieder öffnen.
+Falls nach einem Tabwechsel kein Zugriff besteht, auf der gewünschten Webseite erneut das Extension-Icon anklicken. Auch eine bereits offene Seitenleiste wird dabei aktualisiert. Fehlende Tab-Metadaten blockieren den Zusammenfassen-Button nicht; beim Start wird der tatsächliche Seitenzugriff geprüft.
+
+Nach einem Update der lokal geladenen Extension in `chrome://extensions` auf **Neu laden** klicken, die bisherige Seitenleiste schließen und über das Extension-Icon erneut öffnen. API-Key und Modell bleiben gespeichert.
 
 ## OpenRouter-Setup
 

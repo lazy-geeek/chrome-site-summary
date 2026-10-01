@@ -9,6 +9,12 @@ let controller;
 let summaryText = "";
 let revision = 0;
 
+function canAttempt(tab) {
+  // Without activeTab Chrome can omit metadata. Missing URL is not evidence
+  // that the page is unsupported; executeScript will check actual access.
+  return Number.isInteger(tab?.id) && tab.id >= 0 && (!tab.url || /^https?:\/\//.test(tab.url));
+}
+
 function showError(message) { $("error").textContent = message; $("error").hidden = false; }
 function clearResult() {
   summaryText = ""; $("summary").replaceChildren(); $("meta").textContent = "";
@@ -16,7 +22,7 @@ function clearResult() {
 }
 function stop() {
   controller?.abort(); controller = undefined;
-  $("cancel").hidden = true; $("summarize").disabled = !currentTab || !/^https?:\/\//.test(currentTab.url || "");
+  $("cancel").hidden = true; $("summarize").disabled = !canAttempt(currentTab);
 }
 async function refresh() {
   const version = ++revision;
@@ -28,7 +34,7 @@ async function refresh() {
     currentTab = tab;
     $("page-title").textContent = tab?.title || "Aktuelle Webseite";
     $("page-host").textContent = tab?.url && /^https?:\/\//.test(tab.url) ? new URL(tab.url).hostname : "Klicke auf dieser Webseite auf das Extension-Icon, um Zugriff zu erlauben.";
-    $("summarize").disabled = !tab?.url || !/^https?:\/\//.test(tab.url);
+    $("summarize").disabled = !canAttempt(tab);
     const stored = tab ? await chrome.storage.session.get(`summary:${tab.id}`) : {};
     if (version !== revision) return;
     const cached = stored[`summary:${tab?.id}`];
@@ -61,6 +67,7 @@ $("summarize").addEventListener("click", async () => {
   clearResult(); $("status").textContent = "Hauptinhalt auslesen …";
   try {
     const settings = await loadSettings();
+    job.signal.throwIfAborted();
     if (!settings.apiKey) throw new Error("Bitte hinterlege zuerst deinen OpenRouter API-Key über die Einstellungen (⚙).");
     $("model-label").textContent = settings.model;
     let extraction;
@@ -71,8 +78,9 @@ $("summarize").addEventListener("click", async () => {
     const page = extraction?.[0]?.result;
     if (!page) throw new Error("Es konnte kein Seiteninhalt erfasst werden.");
     if (page.error) throw new Error(page.error);
-    if (page.url !== tab.url) throw new Error("Die Seite hat sich während des Auslesens geändert. Bitte starte erneut.");
+    if (tab.url && page.url !== tab.url) throw new Error("Die Seite hat sich während des Auslesens geändert. Bitte starte erneut.");
     $("page-title").textContent = page.title;
+    $("page-host").textContent = new URL(page.url).hostname;
     const summary = await summarizePage(page, settings, {
       signal: job.signal,
       onProgress: (message) => { if (version === revision) $("status").textContent = message; },
@@ -97,6 +105,12 @@ $("summarize").addEventListener("click", async () => {
 chrome.tabs.onActivated.addListener(async (info) => {
   const window = await chrome.windows.getCurrent();
   if (window.id === info.windowId) refresh();
+});
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender.id !== chrome.runtime.id || message.type !== "PAGE_ACCESS_GRANTED") return;
+  chrome.windows.getCurrent().then((window) => {
+    if (window.id === message.windowId) refresh();
+  }).catch(() => {});
 });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   if (tabId === currentTab?.id && (change.url || change.status === "loading" || change.status === "complete")) refresh();

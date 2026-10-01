@@ -9,20 +9,28 @@ test("protects key access and removes stale snapshots only when a tab navigates 
   const deleted = [];
   let accessLevel;
   let panelBehavior;
+  const action = event();
+  const opened = [];
+  const messages = [];
   globalThis.chrome = {
     storage: {
       local: { setAccessLevel: async (value) => { accessLevel = value.accessLevel; } },
       session: { remove: async (key) => deleted.push(key) }
     },
-    sidePanel: { setPanelBehavior: async (value) => { panelBehavior = value.openPanelOnActionClick; } },
-    runtime: { onInstalled: event(), onStartup: event() },
+    action: { onClicked: action },
+    sidePanel: { setPanelBehavior: async (value) => { panelBehavior = value.openPanelOnActionClick; }, open: async (value) => { opened.push(value); } },
+    runtime: { onInstalled: event(), onStartup: event(), sendMessage: async (value) => { messages.push(value); } },
     tabs: { onUpdated: updated, onRemoved: removed }
   };
   t.after(() => { delete globalThis.chrome; });
   await import(`../background.js?test=${Date.now()}`);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(accessLevel, "TRUSTED_CONTEXTS");
-  assert.equal(panelBehavior, true);
+  assert.equal(panelBehavior, false);
+  action.emit({ id: 10, windowId: 2 });
+  assert.deepEqual(opened, [{ windowId: 2 }]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(messages, [{ type: "PAGE_ACCESS_GRANTED", tabId: 10, windowId: 2 }]);
   updated.emit(1, { title: "Neuer Titel" });
   assert.deepEqual(deleted, []);
   updated.emit(1, { status: "loading" });
