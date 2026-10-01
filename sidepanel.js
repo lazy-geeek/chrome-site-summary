@@ -2,6 +2,7 @@ import { extractPage } from "./extract.js";
 import { loadSettings } from "./settings.js";
 import { summarizePage } from "./openrouter.js";
 import { renderMarkdown } from "./render.js";
+import { getCachedSummary, saveCachedSummary, isSummaryCacheKey } from "./cache.js";
 
 const $ = (id) => document.getElementById(id);
 let currentTab;
@@ -27,26 +28,28 @@ function stop() {
 async function refresh() {
   const version = ++revision;
   stop(); clearResult(); $("status").textContent = ""; $("error").hidden = true;
+  $("summarize").textContent = "Seite zusammenfassen";
   currentTab = undefined; $("summarize").disabled = true;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = activeTab ? { ...activeTab, url: activeTab.pendingUrl || activeTab.url } : undefined;
     if (version !== revision) return;
     currentTab = tab;
     $("page-title").textContent = tab?.title || "Aktuelle Webseite";
     $("page-host").textContent = tab?.url && /^https?:\/\//.test(tab.url) ? new URL(tab.url).hostname : "Klicke auf dieser Webseite auf das Extension-Icon, um Zugriff zu erlauben.";
-    $("summarize").disabled = !canAttempt(tab);
-    const stored = tab ? await chrome.storage.session.get(`summary:${tab.id}`) : {};
+    const cached = currentTab?.url && !tab.incognito ? await getCachedSummary(currentTab.url) : null;
     if (version !== revision) return;
-    const cached = stored[`summary:${tab?.id}`];
-    if (cached && cached.url === tab.url) {
+    if (cached) {
       summaryText = cached.summary; renderMarkdown($("summary"), summaryText);
       $("meta").textContent = cached.meta; $("result").hidden = false; $("empty").hidden = true; $("copy").disabled = false;
       $("summarize").textContent = "Erneut zusammenfassen";
+      $("status").textContent = `Gespeicherte Zusammenfassung vom ${new Date(cached.createdAt).toLocaleString("de-DE")} geladen. Zum Aktualisieren erneut zusammenfassen.`;
     } else $("summarize").textContent = "Seite zusammenfassen";
+    $("summarize").disabled = !canAttempt(tab);
     const settings = await loadSettings();
     if (version !== revision) return;
     $("model-label").textContent = settings.model;
-    if (!settings.apiKey) $("status").textContent = "Hinterlege zuerst deinen API-Key über die Einstellungen (⚙).";
+    if (!settings.apiKey && !cached) $("status").textContent = "Hinterlege zuerst deinen API-Key über die Einstellungen (⚙).";
   } catch { if (version === revision) showError("Die aktuelle Seite konnte nicht geladen werden. Bitte öffne die Seitenleiste erneut."); }
 }
 
@@ -89,13 +92,16 @@ $("summarize").addEventListener("click", async () => {
     if (version !== revision) return;
     summaryText = summary;
     renderMarkdown($("summary"), summary);
-    const meta = `${page.method} · ${page.text.length.toLocaleString("de-DE")} Zeichen · ${settings.model} · ${new Date(page.extractedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
+    const meta = `${page.method} · ${page.text.length.toLocaleString("de-DE")} Zeichen · ${settings.model} · ${new Date(page.extractedAt).toLocaleString("de-DE")}`;
     $("meta").textContent = meta; $("copy").disabled = false;
     $("empty").hidden = true; $("result").hidden = false;
     $("status").textContent = "Zusammenfassung fertig. Sie basiert auf dem Inhalt zum Zeitpunkt des Starts.";
     $("summarize").textContent = "Erneut zusammenfassen";
-    try { await chrome.storage.session.set({ [`summary:${tab.id}`]: { url: page.url, summary, meta } }); }
-    catch { if (version === revision) $("status").textContent += " Das Ergebnis konnte nicht zwischengespeichert werden."; }
+    if (tab.incognito) $("status").textContent += " Im Inkognito-Modus wird das Ergebnis nicht dauerhaft gespeichert.";
+    else {
+      try { await saveCachedSummary({ url: page.url, title: page.title, summary, meta, model: settings.model, createdAt: page.extractedAt }); }
+      catch { if (version === revision) $("status").textContent += " Das Ergebnis konnte nicht dauerhaft gespeichert werden."; }
+    }
   } catch (failure) {
     if (version !== revision) return;
     clearResult(); $("status").textContent = "";
@@ -114,8 +120,11 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   if (tabId === currentTab?.id && (change.url || change.status === "loading" || change.status === "complete")) refresh();
+  else if (tabId === currentTab?.id && change.title) $("page-title").textContent = change.title;
 });
 chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && !controller && !currentTab?.incognito && Object.entries(changes).some(([key, value]) =>
+    isSummaryCacheKey(key) && (value.newValue?.url === currentTab?.url || value.oldValue?.url === currentTab?.url))) refresh();
   if (area === "local" && (changes.apiKey || changes.model)) {
     loadSettings().then((settings) => { $("model-label").textContent = settings.model; if (!controller) $("status").textContent = settings.apiKey ? "Einstellungen aktualisiert." : "Bitte hinterlege einen API-Key in den Einstellungen."; }).catch(() => {});
   }

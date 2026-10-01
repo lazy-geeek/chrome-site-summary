@@ -1,5 +1,6 @@
 import { DEFAULT_MODEL, loadSettings, saveSettings } from "./settings.js";
 import { complete } from "./openrouter.js";
+import { clearCachedSummaries } from "./cache.js";
 
 const key = document.querySelector("#api-key");
 const model = document.querySelector("#model");
@@ -13,6 +14,13 @@ document.querySelector("#toggle-key").addEventListener("click", (event) => {
   key.type = visible ? "text" : "password";
   event.currentTarget.textContent = visible ? "Verbergen" : "Anzeigen";
   event.currentTarget.setAttribute("aria-pressed", String(visible));
+});
+document.querySelector("#clear-cache").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true; error.hidden = true;
+  try { const count = await clearCachedSummaries(); status.textContent = `${count} gespeicherte Zusammenfassung(en) gelöscht. API-Key und Modell bleiben gespeichert.`; }
+  catch { showError("Die gespeicherten Zusammenfassungen konnten nicht gelöscht werden."); }
+  finally { button.disabled = false; }
 });
 document.querySelector("#form").addEventListener("submit", async (event) => {
   event.preventDefault(); error.hidden = true; status.textContent = "";

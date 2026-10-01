@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 function event() { const listeners = []; return { addListener: (callback) => listeners.push(callback), emit: (...args) => listeners.forEach((callback) => callback(...args)) }; }
 
-test("protects key access and removes stale snapshots only when a tab navigates or closes", async (t) => {
+test("protects key access, opens the panel and keeps URL summaries across navigation and tab closure", async (t) => {
   const updated = event();
   const removed = event();
   const deleted = [];
@@ -36,5 +36,5 @@ test("protects key access and removes stale snapshots only when a tab navigates 
   updated.emit(1, { status: "loading" });
   updated.emit(2, { url: "https://example.org/new" });
   removed.emit(3);
-  assert.deepEqual(deleted, ["summary:1", "summary:2", "summary:3"]);
+  assert.deepEqual(deleted, []);
 });

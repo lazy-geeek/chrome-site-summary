@@ -25,7 +25,9 @@ Ein Build oder `npm install` ist für die Installation der Extension nicht erfor
 
 Erfasst wird der Hauptinhalt der gesamten bereits geladenen Seite, einschließlich Text unterhalb des sichtbaren Bildschirmbereichs. Navigation, Werbung, Formulare und bekannte Cookie-Banner werden möglichst herausgefiltert. Versteckte Texte und bearbeitbare Eingabebereiche werden übersprungen. Es wird nichts automatisch gescrollt oder nachgeladen.
 
-Die Ausgabe ist immer auf Deutsch. Es gibt keine Rückfragen und keinen Chat. Das Ergebnis bleibt für den jeweiligen Tab während der Browser-Sitzung zwischengespeichert. Beim Neuladen oder Navigieren wird es verworfen. Ein Tabwechsel bricht eine laufende Verarbeitung ab und zeigt das Ergebnis des neu ausgewählten Tabs, sofern vorhanden. Nach Änderungen einer dynamischen Seite ohne Navigation kann eine vorhandene Zusammenfassung veraltet sein; dann **Erneut zusammenfassen** wählen.
+Die Ausgabe ist immer auf Deutsch. Es gibt keine Rückfragen und keinen Chat. Die Seitenleiste folgt automatisch dem aktiven Tab in ihrem Chrome-Fenster und reagiert auf Navigation, Neuladen und URL-Wechsel dynamischer Seiten. Ein Seitenwechsel bricht eine laufende Verarbeitung ab, damit kein Ergebnis der vorherigen Seite erscheint.
+
+Fertige Ergebnisse werden lokal nach ihrer vollständigen Seitenadresse gespeichert, einschließlich Query-Parametern und URL-Fragmenten für dynamische Anwendungen. Beim erneuten Besuch derselben Adresse wird die vorhandene Zusammenfassung automatisch geladen, ohne neue API-Anfrage. Das funktioniert auch in einem anderen Tab und nach einem Browser-Neustart. Datum und ursprüngliches Modell bleiben sichtbar. Ein Ergebnis kann bei geänderten Inhalten derselben Adresse veraltet sein; dann **Erneut zusammenfassen** wählen. Es werden höchstens 100 Ergebnisse und maximal etwa 4 MiB gespeichert; ältere Ergebnisse werden bei Bedarf entfernt. In den Einstellungen lassen sich alle gespeicherten Zusammenfassungen löschen, ohne API-Key oder Modell zu entfernen. Inkognito-Seiten verwenden keinen dauerhaften Cache.
 
 Falls nach einem Tabwechsel kein Zugriff besteht, auf der gewünschten Webseite erneut das Extension-Icon anklicken. Auch eine bereits offene Seitenleiste wird dabei aktualisiert. Fehlende Tab-Metadaten blockieren den Zusammenfassen-Button nicht; beim Start wird der tatsächliche Seitenzugriff geprüft.
 
@@ -53,9 +55,9 @@ Ein leer gespeicherter API-Key entfernt den bisherigen Key. Eine leere Modell-ID
 
 Erst durch **Seite zusammenfassen** werden Seitentitel und extrahierter Hauptinhalt an OpenRouter und den gewählten Modellanbieter übertragen. Es gibt keinen eigenen Backend-Server und keine Analyse-Telemetrie.
 
-Der API-Key liegt lokal in `chrome.storage.local`, wird nicht per Chrome-Sync synchronisiert und ist nur für vertrauenswürdige Extension-Komponenten zugänglich. Der Key wird nicht an die Webseite oder das Extraktionsskript übergeben. Lokale Chrome-Speicherung ist kein verschlüsselter Passworttresor. Der Rohtext wird nicht dauerhaft gespeichert; fertige Zusammenfassungen werden nur in `chrome.storage.session` gehalten und beim Browser-Neustart gelöscht.
+Der API-Key liegt lokal in `chrome.storage.local`, wird nicht per Chrome-Sync synchronisiert und ist nur für vertrauenswürdige Extension-Komponenten zugänglich. Der Key wird nicht an die Webseite oder das Extraktionsskript übergeben. Lokale Chrome-Speicherung ist kein verschlüsselter Passworttresor. Der Rohtext wird nicht dauerhaft gespeichert. Fertige Zusammenfassungen und zugehörige Seitenadresse, Titel, Modell und Datum bleiben ebenfalls lokal gespeichert, bis sie gelöscht oder durch die Cache-Begrenzung entfernt werden.
 
-Die Extension verwendet `activeTab`, `scripting`, `storage` und `sidePanel`. Der einzige dauerhaft erlaubte externe Host ist `https://openrouter.ai/*`. Für beliebige Webseiten gibt es keine pauschale dauerhafte Host-Berechtigung.
+Die Extension verwendet `activeTab`, `tabs`, `scripting`, `storage` und `sidePanel`. Die Berechtigung `tabs` erlaubt das Erkennen von URL und Titel beim Seitenwechsel, damit passende gespeicherte Ergebnisse automatisch angezeigt werden. Sie erlaubt alleine kein Auslesen des Seiteninhalts. Zum Erstellen einer neuen Zusammenfassung kann deshalb weiterhin ein Klick auf das Extension-Icon auf der betreffenden Webseite notwendig sein. Der einzige dauerhaft erlaubte externe Host ist `https://openrouter.ai/*`. Für beliebige Webseiten gibt es keine pauschale dauerhafte Host-Berechtigung.
 
 Seiteninhalte werden im Prompt als Quellenmaterial behandelt. Die Modellantwort wird mit DOM-Textknoten dargestellt; HTML und Skripte aus Antworten werden nicht ausgeführt. Zusammenfassungen können dennoch Fehler enthalten und ersetzen bei wichtigen Entscheidungen nicht die Originalquelle.
 
@@ -81,7 +83,8 @@ Ergebnis: `dist/chrome-site-summary.zip`. Zum Laden in Chrome zuerst entpacken.
 
 ## Aufbau
 
-- `background.js`: Seitenleiste konfigurieren, Zugriff auf den Key beschränken und veraltete Tab-Ergebnisse entfernen.
+- `background.js`: Seitenleiste konfigurieren, Zugriff auf lokale Daten beschränken und erneute Freigaben des aktuellen Tabs melden.
+- `cache.js`: Dauerhafte Zusammenfassungen nach URL speichern, wiederfinden, begrenzen und löschen.
 - `sidepanel.html` / `sidepanel.js`: Manueller Ablauf, Status, Abbrechen, Kopieren und Tab-Zuordnung.
 - `extract.js`: Hauptinhalt im isolierten Kontext der aktuellen Seite auslesen.
 - `openrouter.js`: Streaming-Client und mehrstufige Verarbeitung langer Texte.
